@@ -1,4 +1,4 @@
-﻿Function Create-DuoRequest{
+﻿Function New-DuoRequest{
 <#
 .SYNOPSIS
     Formats hashtables to payloads for Duo web requst
@@ -43,7 +43,7 @@
     $apiHost = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Script:DuoConfig.apiHost))
     $Date = (Get-Date).ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss -0000")
     
-    $ArgsParamsString = ($Arguments.Keys | Sort-Object | ForEach-Object {
+    $DuoParamsParamsString = ($Arguments.Keys | Sort-Object | ForEach-Object {
         $_ + "=" + [uri]::EscapeDataString($Arguments.$_)
     }) -join "&"
 
@@ -52,7 +52,7 @@
         $method.ToUpper().Trim(),
         $apiHost.ToLower().Trim(),
         $Uri.Trim(),
-        $ArgsParamsString.trim()
+        $DuoParamsParamsString.trim()
     ).trim() -join "`n").ToCharArray().ToByte([System.IFormatProvider]$UTF8)
 
     $Secret = [System.Security.Cryptography.HMACSHA1]::new($skey.ToCharArray().ToByte([System.IFormatProvider]$UTF8))
@@ -126,19 +126,19 @@ Function Get-AllDuoGroups{
     #Base Claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/groups"
-    $Args = @{}
-    $Args.Add("limit","100")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","100")
+    $DuoParams.Add("offset","0")
 
     #Duo has a 100 group limit in their api. Loop to return all groups
     $Offset=0
     Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{

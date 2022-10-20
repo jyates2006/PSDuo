@@ -5,10 +5,10 @@
 .DESCRIPTION
     Sets the default configuration for PSDUO with and option to save it.
 .EXAMPLE
-    New-DUOConfig -ikey SDFJASKLDFJASLKDJ -sKey ASDKLFJSM<NVCIWJRFKSDM<>SMVNFNSKLF -apiHost api-###XXX###.duosecurity.com
+    New-DUOConfig -IntergrationKey SDFJASKLDFJASLKDJ -SecretKey ASDKLFJSM<NVCIWJRFKSDM<>SMVNFNSKLF -apiHost api-###XXX###.duosecurity.com
     Generate a module scoped variable for DUO's REST API
 .EXAMPLE
-   New-DUOConfig -ikey SDFJASKLDFJASLKDJ -sKey ASDKLFJSM<NVCIWJRFKSDM<>SMVNFNSKLF -apiHost api-###XXX###.duosecurity.com -SaveConfig -Path C:\Duo\DuoConfig.xml
+   New-DUOConfig -IntergrationKey SDFJASKLDFJASLKDJ -SecretKey ASDKLFJSM<NVCIWJRFKSDM<>SMVNFNSKLF -apiHost api-###XXX###.duosecurity.com -SaveConfig -Path C:\Duo\DuoConfig.xml
     Generates the global variable for DUO's REST API
 .OUTPUTS
     [PSCustomObject]$DuoConfig
@@ -116,11 +116,11 @@ Function Add-DuoDirectoryKeys{
 Function Get-DuoDirectoryNames{
     $DuoConfig = Get-DuoConfig
     $IgnoreValues = @("apiHost","SecretKey","IntergrationKey")
-    $Output = $DuoConfig.GetEnumerator() | Where Name -NotIn $IgnoreValues
+    $Output = $DuoConfig.GetEnumerator() | Where-Object Name -NotIn $IgnoreValues
     $Output.Name
 }
 
-Function Import-DuoConfig{
+Function Import-DuoConfig {
 <#
 .Synopsis
    DUO REST API Configuration Import
@@ -157,7 +157,7 @@ Function Import-DuoConfig{
 }
 
 #Get Duo Config
-Function Get-DuoConfig{
+Function Get-DuoConfig {
 <#
 .Synopsis
    Return the DUO REST API Configuration Settings
@@ -187,7 +187,7 @@ Function Get-DuoConfig{
 }
 
 #Test Duo Connection
-Function Test-DuoConnection{
+Function Test-DuoConnection {
 <#
 .Synopsis
    Ping Duo Endpoints
@@ -258,7 +258,7 @@ Function Test-DuoConnection{
     }
 }
 
-Function Test-DuoUser{
+Function Test-DuoUser {
 <#
 .Synopsis
     Validates if a user exist in Duo
@@ -285,25 +285,47 @@ Function Test-DuoUser{
             ParameterSetName="Uname",
             Mandatory=$true
             )]
-                $Username,
+                $UserName,
         [Parameter(
             ParameterSetName="UID",
             Mandatory=$true
             )]
                 $UserID
     )
-    If($Username){$UserID = (Get-DuoUser -Username $Username -ErrorAction Ignore).user_id}
-    If([String]::IsNullOrEmpty($UserID)){$UserID="null"}
+    	#Base claim
+    [String]$Method = "GET"
+    [String]$Uri = "/admin/v1/users"
+    [Hashtable]$DuoParams = @{}
+    
+    If($UserName){
+        $DuoParams.Add("username",$UserName)
+    }
+    elseif ($UserID) {
+        $Uri = "/admin/v1/users/user_id"
+    }
+
     Try{
-        Get-DuoUser -UserID $UserID | Out-Null
-        Return $true
+        	#Creates the request
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+        $Response = Invoke-RestMethod @Request
+        
+        #Error Handling
+        If($Response.stat -ne 'OK'){
+            Write-Warning 'DUO REST Call Failed'
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
+            Write-Warning "Method:$Method    Path:$Uri"
+        }
+        #Returning request
+        Else{
+            Return $true
+        }
     }
     Catch{
         Return $false
     }
 }
 
-Function Test-DuoGroup{
+Function Test-DuoGroup {
     [CmdletBinding(DefaultParameterSetName="Gname")]
     Param(
         [Parameter(
@@ -321,7 +343,34 @@ Function Test-DuoGroup{
             )]
                 $GroupID
     )
-    If($GroupName){
+   
+    If($GroupID){
+        	#Base claim
+        [String]$Method = "GET"
+        [String]$Uri = "/admin/v1/groups/$($GroupID)"
+        [Hashtable]$DuoParams = @{}
+
+        Try {
+            	#Creates the request
+            $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+            $Response = Invoke-RestMethod @Request
+    
+            #Error Handling
+            If($Response.stat -ne 'OK'){
+                Write-Warning 'DUO REST Call Failed'
+                Write-Warning "Arguments:"+($DuoParams | Out-String)
+                Write-Warning "Method:$Method    Path:$Uri"
+            }
+            #Returning request
+            Else{
+                Return $true
+            }
+        }
+        Catch {
+            Return $false
+        }
+    }
+    ElseIF($GroupName){
         Try{
             Get-DuoGroup -GroupName $GroupName | Out-Null
             Return $true
@@ -330,19 +379,9 @@ Function Test-DuoGroup{
             Return $false
         }
     }
-    ElseIf($GroupID){
-        Try{
-            Get-DuoGroup -GroupID $GroupID | Out-Null
-            Return $true
-        }
-        Catch{
-            Return $false
-        }
-    }
-
 }
 
-Function Test-DuoPhone{
+Function Test-DuoPhone {
     Param(
         [String]$Name,
         [String]$PhoneID,
@@ -350,28 +389,28 @@ Function Test-DuoPhone{
         [String]$Extension
     )
 
-    #Base claim
+        #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/phones"
-    $Args = @{}
-    $Args.Add("limit","500")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","500")
+    $DuoParams.Add("offset","0")
     $Offset = 0
 
-    #Duo has a 300 user limit in their api. Loop to return all users
+        #Duo has a 300 user limit in their api. Loop to return all users
     $AllPhones = Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
             $Output = $Response | Select-Object -ExpandProperty Response 
             $Output
-            #Increment offset to return the next 300 users
+                #Increment offset to return the next 300 users
             $Offset += 500
         }
     }Until($Output.Count -lt 500)
@@ -410,20 +449,20 @@ Function Test-DuoPhone{
     }
 }
 
-Function Test-DuoBypassCode{
+Function Test-DuoBypassCode {
     Param(
         [String]$BypassCodeID
     )
-    #Base claim
+        #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/bypass_codes/$($BypassCodeID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
     Try{
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -431,6 +470,66 @@ Function Test-DuoBypassCode{
             $Output
         }
         Return $true
+    }
+    Catch{
+        Return $false
+    }
+}
+
+Function Test-DuoToken {
+    Param(
+        [Parameter(Mandatory=$true,
+            ValuefromPipeline=$true
+        )]
+            [String]$Serial
+    )
+
+        #Base Claim
+    [String]$Method = "GET"
+    [String]$Uri = "/admin/v1/tokens/$($TokenID)"
+    [Hashtable]$DuoParams = @{}
+    
+    Try{
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+        $Response = Invoke-RestMethod @Request
+        If($Response.stat -ne 'OK'){
+            Write-Warning 'DUO REST Call Failed'
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
+            Write-Warning "Method:$Method    Path:$Uri"
+        }   
+        Else{
+            Return $ture
+        }
+    }
+    Catch{
+        Return $false
+    }
+}
+
+Function Test-DuoWebAuthn {
+    Param(
+        [Paramter(Mandatory=$true,
+            ValuefromPipeline=$true
+        )]
+            [String]$WebAuthnKey
+    )
+
+        #Base Claim
+    [String]$Method = "GET"
+    [String]$Uri = "/admin/v1/webauthncredentials/$($WebAuthnKey)"
+    [Hashtable]$DuoParams = @{}
+
+    Try{
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+        $Response = Invoke-RestMethod @Request
+        If($Response.stat -ne 'OK'){
+            Write-Warning 'DUO REST Call Failed'
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
+            Write-Warning "Method:$Method    Path:$Uri"
+        }   
+        Else{
+            Return $true
+        }
     }
     Catch{
         Return $false

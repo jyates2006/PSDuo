@@ -27,19 +27,19 @@
     #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/phones"
-    $Args = @{}
-    $Args.Add("limit","500")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","500")
+    $DuoParams.Add("offset","0")
     $Offset = 0
 
     #Duo has a 500 phone limit in their api. Loop to return all phones
     $AllPhones = Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -101,35 +101,35 @@ Function New-DuoPhone{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/phones"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     If($Name){
-        $Args.Add("name",$Name)
+        $DuoParams.Add("name",$Name)
     }
     If($Number){
-        $Args.Add("number",$Number)
+        $DuoParams.Add("number",$Number)
     }
     If($Extension){
-        $Args.Add("extension",$Extension)
+        $DuoParams.Add("extension",$Extension)
     }
     If($Type){
-        $Args.Add("type",$type.ToLower())
+        $DuoParams.Add("type",$type.ToLower())
     }
     If($Platform){
-        $Args.Add("Platform",$Platform.ToLower())
+        $DuoParams.Add("Platform",$Platform.ToLower())
     }
     If($Predelay){
-        $Args.Add("predelay",$Predelay)
+        $DuoParams.Add("predelay",$Predelay)
     }
     If($PostDelay){
-        $Args.Add("postdelay",$PostDelay)
+        $DuoParams.Add("postdelay",$PostDelay)
     }
 
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }   
     Else{
@@ -175,35 +175,35 @@ Function Set-DuoPhone{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/phones/$($PhoneID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
     
     If($Name){
-        $Args.Add("name",$Name)
+        $DuoParams.Add("name",$Name)
     }
     If($Number){
-        $Args.Add("number",$Number)
+        $DuoParams.Add("number",$Number)
     }
     If($Extension){
-        $Args.Add("extension",$Extension)
+        $DuoParams.Add("extension",$Extension)
     }
     If($Type){
-        $Args.Add("type",$type.ToLower())
+        $DuoParams.Add("type",$type.ToLower())
     }
     If($Platform){
-        $Args.Add("Platform",$Platform.ToLower())
+        $DuoParams.Add("Platform",$Platform.ToLower())
     }
     If($Predelay){
-        $Args.Add("predelay",$Predelay)
+        $DuoParams.Add("predelay",$Predelay)
     }
     If($PostDelay){
-        $Args.Add("postdelay",$PostDelay)
+        $DuoParams.Add("postdelay",$PostDelay)
     }
 
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }   
     Else{
@@ -229,13 +229,13 @@ Function Remove-DuoPhone{
     #Base claim
     [String]$Method = "DELETE"
     [String]$Uri = "/admin/v1/phones/$($PhoneID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }   
     Else{
@@ -244,7 +244,7 @@ Function Remove-DuoPhone{
     }
 }
 
-Function New-DuoMobileActivationCode{
+Function New-DuoMobileActivation{
 
     [CmdletBinding(DefaultParameterSetName="None")]
     Param(
@@ -305,31 +305,31 @@ Function New-DuoMobileActivationCode{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/phones/$($PhoneID)/activation_url"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
     
     If($Install){
-        $Args.Add("install","1")
+        $DuoParams.Add("install","1")
     }
     If($ExpireTime){
-        $Args.Add("valid_secs",$ExpireTime)
+        $DuoParams.Add("valid_secs",$ExpireTime)
     }
 
     If($SendSMS){
         #Base claim
         [String]$Uri = "/admin/v1/phones/$($PhoneID)/send_sms_activation_url"
         If($Activation_Message){
-            $Args.Add("activation_msg",$Activation_Message)
+            $DuoParams.Add("activation_msg",$Activation_Message)
         }
         If($Installation_Message){
-            $Args.Add("installation_msg",$Installation_Message)
+            $DuoParams.Add("installation_msg",$Installation_Message)
         }
     }
 
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }   
     Else{

@@ -17,9 +17,9 @@
     #Base Claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v2/groups"
-    $Args = @{}
-    $Args.Add("limit","100")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","100")
+    $DuoParams.Add("offset","0")
 
     If($GroupID){
         $Groups = $null
@@ -31,16 +31,16 @@
     Else{
         $Groups = Get-AllDuoGroups
     }
-    If($Groups -eq $null){
+    If($null -eq $Groups){
         [String]$Uri = "/admin/v2/groups/$($GroupID)"
         #Creates the request
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         
         #Error Handling
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }
         #Returning request
@@ -54,13 +54,13 @@
             $GroupID = $Group.group_id
             [String]$Uri = "/admin/v2/groups/$($GroupID)"
             #Creates the request
-            $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+            $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
             $Response = Invoke-RestMethod @Request
             
             #Error Handling
             If($Response.stat -ne 'OK'){
                 Write-Warning 'DUO REST Call Failed'
-                Write-Warning "Arguments:"+($Args | Out-String)
+                Write-Warning "Arguments:"+($DuoParams | Out-String)
                 Write-Warning "Method:$Method    Path:$Uri"
             }
             #Returning request
@@ -113,21 +113,21 @@ Function Get-DuoGroupMembers{
     If($GroupID){
         [String]$Uri = "/admin/v2/groups/$($GroupID)/users"
         $Method = "GET"
-        $Args = @{}
-        $Args.Add("limit","500")
-        $Args.Add("offset","0")
+        [Hashtable]$DuoParams = @{}
+        $DuoParams.Add("limit","500")
+        $DuoParams.Add("offset","0")
         $Offset = 0
 
         Do{
-            $Args.offset = $Offset
+            $DuoParams.offset = $Offset
             #Creates the request
-            $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+            $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
             $Response = Invoke-RestMethod @Request
             
             #Error Handling
             If($Response.stat -ne 'OK'){
                 Write-Warning 'DUO REST Call Failed'
-                Write-Warning "Arguments:"+($Args | Out-String)
+                Write-Warning "Arguments:"+($DuoParams | Out-String)
                 Write-Warning "Method:$Method    Path:$Uri"
             }
             #Returning request
@@ -163,23 +163,23 @@ Function New-DuoGroup{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/groups"
-    $Args = @{}
-    $Args.Add("name",$Name)
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("name",$Name)
     If($Description){
-        $Args.Add("desc",$Description)
+        $DuoParams.Add("desc",$Description)
     }
     If($Status){
-        $Args.Add("status",$Status)
+        $DuoParams.Add("status",$Status)
     }
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -221,22 +221,22 @@ Function Update-DuoGroup{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/groups/$($GroupID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
     If($Name){
-        $Args.Add("name",$Name)
+        $DuoParams.Add("name",$Name)
     }
     If($Status){
-        $Args.Add("status",$Status)
+        $DuoParams.Add("status",$Status)
     }
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -262,16 +262,16 @@ Function Remove-DuoGroup{
     #Base claim
     [String]$Method = "DELETE"
     [String]$Uri = "/admin/v1/groups/$($GroupID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request

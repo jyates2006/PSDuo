@@ -48,7 +48,7 @@
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
             If($_ -In (Get-DuoDirectoryNames)){$true}
-            Else{Throw "$($_) is an invalid directory"}
+            Else{Throw "Directory: $($_) is an invalid entry"}
         })]
             [String]$Directory,
         [Parameter(
@@ -63,18 +63,18 @@
     #Base Claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/users/directorysync/$($dKey)/syncuser"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     #$User = Get-DuoUser -Username $Username
     If($Email){$VerifiedUsername = (Get-Duouser -Username $Username).email}
     Else{$VerifiedUsername = $Username}
-    $Args.Add("username",$VerifiedUsername.ToLower())
+    $DuoParams.Add("username",$VerifiedUsername.ToLower())
 
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     Else{
@@ -114,41 +114,49 @@ Function Get-DuoUser {
             Mandatory = $false,
             ValueFromPipeLine = $true,
             Position=0
-            )]
+        )]
+        [ValidateScript({
+            If(Test-DuoUser -UserName $_){$true}
+            Else{Throw "User: $($_) doesn't exist in Duo"}
+        })]
             [String]$Username,
         [Parameter(ParameterSetName="UID",
             Mandatory = $false,
             ValueFromPipeLine = $false,
             Position=0
-            )]
+        )]
+        [ValidateScript({
+            If(Test-DuoUser -UserID $_){$true}
+            Else{Throw "User ID: $($_) doesn't exist in Duo"}
+        })]
             [String]$UserID
     )
 
     #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/users"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     If($Username){
-        $Args.Add("username",$Username.ToLower())
+        $DuoParams.Add("username",$Username.ToLower())
     }
     ElseIf($UserID){    
         $Uri = "/admin/v1/users/$($UserID)"
     }
     Else{
-        $Args.Add("limit","300")
-        $Args.Add("offset","0")
+        $DuoParams.Add("limit","300")
+        $DuoParams.Add("offset","0")
     }
     $Offset = 0
 
     #Duo has a 300 user limit in their api. Loop to return all users
     Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -160,7 +168,7 @@ Function Get-DuoUser {
     }Until($Output.Count -lt 300)
 }
 
-Function New-Duouser{
+Function New-DuoUser{
 <#
 .SYNOPSIS
     Creates a new user within Duo with Duo as the source
@@ -250,28 +258,28 @@ Function New-Duouser{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/users"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     #Add Username
-    $Args.Add("username",$Username.ToLower())
+    $DuoParams.Add("username",$Username.ToLower())
 
     #Add Optional Parameters
-    If($Alias1){$Args.Add("alias1",$Alias1.ToLower())}
-    If($Alias2){$Args.Add("alias2",$Alias2.ToLower())}
-    If($Alias3){$Args.Add("alias3",$Alias3.ToLower())}
-    If($Alias4){$Args.Add("alias4",$Alias4.ToLower())}
-    If($Realname){$Args.Add("realname",$Realname)}
-    If($Firstname){$Args.Add("firstname",$Firstname)}
-    If($Lastname){$Args.Add("lastname",$Lastname)}
-    If($Email){$Args.Add("email",$Email.ToLower())}
-    If($Status){$Args.Add("status",$Status.ToLower())}
-    If($Notes){$Args.Add("notes",$Notes)}
+    If($Alias1){$DuoParams.Add("alias1",$Alias1.ToLower())}
+    If($Alias2){$DuoParams.Add("alias2",$Alias2.ToLower())}
+    If($Alias3){$DuoParams.Add("alias3",$Alias3.ToLower())}
+    If($Alias4){$DuoParams.Add("alias4",$Alias4.ToLower())}
+    If($Realname){$DuoParams.Add("realname",$Realname)}
+    If($Firstname){$DuoParams.Add("firstname",$Firstname)}
+    If($Lastname){$DuoParams.Add("lastname",$Lastname)}
+    If($Email){$DuoParams.Add("email",$Email.ToLower())}
+    If($Status){$DuoParams.Add("status",$Status.ToLower())}
+    If($Notes){$DuoParams.Add("notes",$Notes)}
 
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     Else{
@@ -290,13 +298,15 @@ Function Set-DuoUser{
         )]
         [ValidateScript({
             If(Test-DuoUser -UserID $_){$true}
-            Else{Throw "Invalid User ID"}
-        })][String]$UserID,
+            Else{Throw "User ID: $($_) doesn't exist within Duo"}
+        })]
+            [String]$UserID,
         [Parameter(
             Mandatory=$false,
             ValueFromPipleLine=$true,
             Position=1
-        )]$Username,
+        )]
+            [String]$Username,
         [Parameter(Mandatory=$false)]
             [String]$Alias1,
         [Parameter(Mandatory=$false)]
@@ -322,28 +332,28 @@ Function Set-DuoUser{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/users/$($UserID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     #Create claim with selected attributes to be modified
-    If($Username){$Args.Add("username",$Username.ToLower())}
-    If($Alias1){$Args.Add("Alias1",$alias1.ToLower())}
-    If($Alias2){$Args.Add("Alias2",$alias2.ToLower())}
-    If($Alias3){$Args.Add("Alias3",$alias3.ToLower())}
-    If($Alias4){$Args.Add("Alias4",$alias4.ToLower())}
-    If($RealName){$Args.Add("realname",$RealName)}
-    If($FirstName){$Args.Add("firstname",$FirstName)}
-    If($LastName){$Args.Add("lastname",$LastName)}
-    If($Email){$Args.Add("email",$Email.ToLower())}
-    If($Status){$Args.Add("status",$Status.ToLower())}
-    If($Notes){$Args.Add("Notes",$Notes)}
+    If($Username){$DuoParams.Add("username",$Username.ToLower())}
+    If($Alias1){$DuoParams.Add("Alias1",$alias1.ToLower())}
+    If($Alias2){$DuoParams.Add("Alias2",$alias2.ToLower())}
+    If($Alias3){$DuoParams.Add("Alias3",$alias3.ToLower())}
+    If($Alias4){$DuoParams.Add("Alias4",$alias4.ToLower())}
+    If($RealName){$DuoParams.Add("realname",$RealName)}
+    If($FirstName){$DuoParams.Add("firstname",$FirstName)}
+    If($LastName){$DuoParams.Add("lastname",$LastName)}
+    If($Email){$DuoParams.Add("email",$Email.ToLower())}
+    If($Status){$DuoParams.Add("status",$Status.ToLower())}
+    If($Notes){$DuoParams.Add("Notes",$Notes)}
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -363,7 +373,7 @@ Function Remove-DuoUser{
         )]
         [ValidateScript({
             If(Test-DuoUser -UserID $_){$true}
-            Else{Throw "Invalid User ID"}
+            Else{Throw "User ID: $($_) doesn't exist within Duo"}
         })]$UserID,
         [Switch]$Force
     )
@@ -379,13 +389,13 @@ Function Remove-DuoUser{
         [String]$Uri = "/admin/v1/users/$($UserID)"
 
         #Creates the request
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         
         #Error Handling
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }
         #Returning request
@@ -396,18 +406,18 @@ Function Remove-DuoUser{
     }
 }
 
-Function Enroll-DuoUser{
+Function New-DuoUserEnrollment{
 
     Param(
         [Parameter(
             Mandatory=$true,
-            HelpMessage="Duo username to be enrolled",
+            HelpMessage="Duo username or alias to be enrolled",
             ValueFromPipleLine=$true,
             Position=0
         )]
         [ValidateScript({
             If(Test-DuoUser -Username $_){$true}
-            Else{Throw "Invalid User ID"}
+            Else{Throw "User ID: $($_) doesn't exist within Duo"}
         })]
             [String]$Username,
         [Parameter(
@@ -444,23 +454,23 @@ Function Enroll-DuoUser{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/users/enroll"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
-    $Args.Add("username",$Username.ToLower())
-    $Args.Add("email",$Email.ToString().ToLower())
+    $DuoParams.Add("username",$Username.ToLower())
+    $DuoParams.Add("email",$Email.ToString().ToLower())
     If($Time){
         $Time = [Math]::Round($Time)
-        $Args.Add("valid_secs",$Time.ToString())
+        $DuoParams.Add("valid_secs",$Time.ToString())
     }
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -480,7 +490,7 @@ Function New-DuoUserBypassCode{
         )]
         [ValidateScript({
             If(Test-DuoUser -Username $_){$true}
-            Else{Throw "Invalid User ID"}
+            Else{Throw "User ID: $($_) doesn't exist within Duo"}
         })]
             [String]$Username,
 
@@ -538,25 +548,25 @@ Function New-DuoUserBypassCode{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/users/$($UserID)/bypass_codes"
-    $Args = @{}
-    $Args.Add("count",$Count.ToString())
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("count",$Count.ToString())
     If($Codes){
         $Codes = $Codes | ConvertTo-Csv -NoTypeInformation
-        $Args.Add("codes",$Codes)
+        $DuoParams.Add("codes",$Codes)
     }
     If($NumberOfUses){
-        $Args.Add("resuse_count",$NumberOfUses)
+        $DuoParams.Add("resuse_count",$NumberOfUses)
     }
-    $Args.Add("valid_secs",$Time.ToString())
+    $DuoParams.Add("valid_secs",$Time.ToString())
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -577,7 +587,7 @@ Function Get-DuoUserBypassCode{
             )]
         [ValidateScript({
             If(Test-DuoUser -UserName $_){$true}
-            Else{Throw "User: $($_) doesn't exist in Duo"}
+            Else{Throw "User: $($_) doesn't exist withinin Duo"}
         })]
             [String]$Username,
         [Parameter(ParameterSetName="UID",
@@ -587,7 +597,7 @@ Function Get-DuoUserBypassCode{
             )]
         [ValidateScript({
             If(Test-DuoUser -UserName $_){$true}
-            Else{Throw "UserID: $($_) doesn't exist in Duo"}
+            Else{Throw "User ID: $($_) doesn't exist within Duo"}
         })]
             [String]$UserID
     )
@@ -599,26 +609,26 @@ Function Get-DuoUserBypassCode{
     #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/users/$($UserID)/bypass_codes"
-    $Args = @{}
-    $Args.Add("limit","300")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","300")
+    $DuoParams.Add("offset","0")
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Call private function to validate and format the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Offset = 0
 
     #Duo has a 500 bypass code limit in their api. Loop to return all bypass codes
     Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -651,7 +661,7 @@ Function Get-DuoUserGroups{
             )]
         [ValidateScript({
             If(Test-DuoUser -UserName $_){$true}
-            Else{Throw "UserID: $($_) doesn't exist in Duo"}
+            Else{Throw "User ID: $($_) doesn't exist in Duo"}
         })]
             [String]$UserID
     )
@@ -663,26 +673,26 @@ Function Get-DuoUserGroups{
     #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/users/$($UserID)/groups"
-    $Args = @{}
-    $Args.Add("limit","300")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","300")
+    $DuoParams.Add("offset","0")
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Call private function to validate and format the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Offset = 0
 
     #Duo has a 500 bypass code limit in their api. Loop to return all bypass codes
     Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -715,7 +725,7 @@ Function Add-DuoGroupMember{
         )]
         [ValidateScript({
             If(Test-DuoUser -UserID $_){$true}
-            Else{Throw "UserID: $($_) doesn't exist in Duo"}
+            Else{Throw "User ID: $($_) doesn't exist in Duo"}
         })]
             [String]$UserID,
         [Parameter(Mandatory=$true,
@@ -724,7 +734,7 @@ Function Add-DuoGroupMember{
         )]
         [ValidateScript({
             If(Test-DuoGroup -GroupID $_){$true}
-            Else{Throw "GroupID: $($_) doesn't exist in Duo"}
+            Else{Throw "Group ID: $($_) doesn't exist in Duo"}
         })]
             [String]$GroupID
     )
@@ -736,17 +746,17 @@ Function Add-DuoGroupMember{
     #Base claim
     [String]$Method = "POST"
     [String]$Uri = "/admin/v1/users/$($UserID)/groups"
-    $Args = @{}
-    $Args.Add("group_id",$GroupID)
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("group_id",$GroupID)
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -777,7 +787,7 @@ Function Remove-DuoGroupMember{
         )]
         [ValidateScript({
             If(Test-DuoUser -UserID $_){$true}
-            Else{Throw "UserID: $($_) doesn't exist in Duo"}
+            Else{Throw "User ID: $($_) doesn't exist in Duo"}
         })]
             [String]$UserID,
         [Parameter(Mandatory=$true,
@@ -786,7 +796,7 @@ Function Remove-DuoGroupMember{
         )]
         [ValidateScript({
             If(Test-DuoGroup -GroupID $_){$true}
-            Else{Throw "GroupID: $($_) doesn't exist in Duo"}
+            Else{Throw "Group ID: $($_) doesn't exist in Duo"}
         })]
             [String]$GroupID
     )
@@ -798,16 +808,16 @@ Function Remove-DuoGroupMember{
     #Base claim
     [String]$Method = "DELETE"
     [String]$Uri = "/admin/v1/users/$($UserID)/groups/$($GroupID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
@@ -838,7 +848,7 @@ Function Get-DuoUserPhone{
         )]
         [ValidateScript({
             If(Test-DuoUser -UserID $_){$true}
-            Else{Throw "UserID: $($_) doesn't exist in Duo"}
+            Else{Throw "User ID: $($_) doesn't exist in Duo"}
         })]
             [String]$UserID
     )
@@ -850,20 +860,20 @@ Function Get-DuoUserPhone{
     #Base claim
     [String]$Method = "GET"
     [String]$Uri = "/admin/v1/users/$($UserID)/phones"
-    $Args = @{}
-    $Args.Add("limit","500")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","500")
+    $DuoParams.Add("offset","0")
     
     $Offset = 0
 
     #Duo has a 500 phone limit in their api. Loop to return all phones
     Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -876,29 +886,180 @@ Function Get-DuoUserPhone{
 }
 
 Function Add-DuoPhoneMember{
+    Param(
+        [String]$UserID,
+        [String]$UserName,
+        [String]$PhoneID
+    )
 
+        #Base claim
+    [String]$Method = "POST"
+    [String]$Uri = "/admin/v1/users/$($UserID)/phones"
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("phone_id",$PhoneID)
+
+    #Creates the request
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+    $Response = Invoke-RestMethod @Request
+    
+    #Error Handling
+    If($Response.stat -ne 'OK'){
+        Write-Warning 'DUO REST Call Failed'
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
+        Write-Warning "Method:$Method    Path:$Uri"
+    }
+    #Returning request
+    Else{
+        $Output = $Response | Select-Object -ExpandProperty Response 
+        $Output
+    }
 }
 
 Function Remove-DuoPhoneMember{
+    Param( 
+        [String]$UserID,
+        [String]$UserName,
+        [String]$PhoneID
+    )
+        #Base claim
+    [String]$Method = "DELETE"
+    [String]$Uri = "/admin/v1/users/$($UserID)/phones/$($PhoneID)"
+    [Hashtable]$DuoParams = @{}
 
+    #Creates the request
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+    $Response = Invoke-RestMethod @Request
+    
+    #Error Handling
+    If($Response.stat -ne 'OK'){
+        Write-Warning 'DUO REST Call Failed'
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
+        Write-Warning "Method:$Method    Path:$Uri"
+    }
+    #Returning request
+    Else{
+        $Output = $Response | Select-Object -ExpandProperty Response 
+        $Output
+    }
 }
 
-Function Get-DuoUserHardwareToken{
+Function Get-DuoUserToken{
+    Param(
+        [String]$UserID,
+        [String]$UserName,
+        [String]$TokenID
+    )
 
+        #Base claim
+    [String]$Method = "GET"
+    [String]$Uri = "/admin/v1/users/$($UserID)/tokens"
+    [Hashtable]$DuoParams = @{}
+
+    $DuoParams.Add("limit","500")
+    $DuoParams.Add("offset","0")
+    $Offset = 0
+
+    	#Duo has a 500 Tokens limit in their api. Loop to return all Tokens
+    Do{
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+        $Response = Invoke-RestMethod @Request
+        If($Response.stat -ne 'OK'){
+            Write-Warning 'DUO REST Call Failed'
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
+            Write-Warning "Method:$Method    Path:$Uri"
+        }   
+        Else{
+            $Output = $Response | Select-Object -ExpandProperty Response 
+            $Output
+                #Increment offset to return the next 500 Tokens
+            $Offset += 500
+        }
+    }Until($Output.Count -lt 500)
 }
 
-Function Add-DuoHardwareTokenMember{
+Function Add-DuoTokenMember{
+    Param(
+        [String]$UserID,
+        [String]$UserName,
+        [String]$TokenID
+    )
 
+    [String]$Method = "POST"
+    [String]$Uri = "/admin/v1/users/$($UserID)/tokens"
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("token_id",$TokenID)
+
+    	#Creates the request
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+    $Response = Invoke-RestMethod @Request
+    
+    #Error Handling
+    If($Response.stat -ne 'OK'){
+        Write-Warning 'DUO REST Call Failed'
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
+        Write-Warning "Method:$Method    Path:$Uri"
+    }
+    #Returning request
+    Else{
+        $Output = $Response | Select-Object -ExpandProperty Response 
+        $Output
+    }
 }
 
-Function Remove-DuoHardwareTokenMember{
+Function Remove-DuoTokenMember{
+    Param(
+        [String]$UserID,
+        [String]$UserName,
+        [String]$TokenID
+    )
 
-}
+        #Base Claim
+    [String]$Method = "DELETE"
+    [String]$Uri = "/admin/v1/users/$($UserID)/tokens/$($TokenID)"
+    [Hashtable]$DuoParams = @{}
 
-Function Get-DuoUserU2FToken{
-
+    	#Creates the request
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+    $Response = Invoke-RestMethod @Request
+    
+    #Error Handling
+    If($Response.stat -ne 'OK'){
+        Write-Warning 'DUO REST Call Failed'
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
+        Write-Warning "Method:$Method    Path:$Uri"
+    }
+    #Returning request
+    Else{
+        $Output = $Response | Select-Object -ExpandProperty Response 
+        $Output
+    }
 }
 
 Function Get-DuoUserWebAuthn{
+    Param(
+        $UserName,
+        $UserID
+    )
 
+        #Base Claim
+    [String]$Method = "GET"
+    [String]$Uri = "/admin/v1/users/$($UserID)/webauthncredentials"
+    [Hashtable]$DuoParams = @{}
+
+    	#Creates the request
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
+    $Response = Invoke-RestMethod @Request
+    
+    #Error Handling
+    If($Response.stat -ne 'OK'){
+        Write-Warning 'DUO REST Call Failed'
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
+        Write-Warning "Method:$Method    Path:$Uri"
+    }
+    #Returning request
+    Else{
+        $Output = $Response | Select-Object -ExpandProperty Response 
+        $Output
+    }
 }

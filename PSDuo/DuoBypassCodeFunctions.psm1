@@ -18,18 +18,18 @@
     Else{
         [String]$Uri = "/admin/v1/bypass_codes"
     }
-    $Args = @{}
-    $Args.Add("limit","500")
-    $Args.Add("offset","0")
+    [Hashtable]$DuoParams = @{}
+    $DuoParams.Add("limit","500")
+    $DuoParams.Add("offset","0")
 
     $Offset=0
     Do{
-        $Args.Offset = $Offset
-        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+        $DuoParams.Offset = $Offset
+        $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
         $Response = Invoke-RestMethod @Request
         If($Response.stat -ne 'OK'){
             Write-Warning 'DUO REST Call Failed'
-            Write-Warning "Arguments:"+($Args | Out-String)
+            Write-Warning "Arguments:"+($DuoParams | Out-String)
             Write-Warning "Method:$Method    Path:$Uri"
         }   
         Else{
@@ -57,15 +57,15 @@ Function Remove-DuoBypassCode{
     #Base claim
     [String]$Method = "DELETE"
     [String]$Uri = "/admin/v1/bypass_codes/$($BypassCodeID)"
-    $Args = @{}
+    [Hashtable]$DuoParams = @{}
 
     #Creates the request
-    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $Args
+    $Request = Create-DuoRequest -UriPath $Uri -Method $Method -Arguments $DuoParams
     $Response = Invoke-RestMethod @Request
     #Error Handling
     If($Response.stat -ne 'OK'){
         Write-Warning 'DUO REST Call Failed'
-        Write-Warning "Arguments:"+($Args | Out-String)
+        Write-Warning "Arguments:"+($DuoParams | Out-String)
         Write-Warning "Method:$Method    Path:$Uri"
     }
     #Returning request
